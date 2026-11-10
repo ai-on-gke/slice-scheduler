@@ -1,0 +1,128 @@
+# Copyright 2026 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Default values for slice-scheduler.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+image:
+  repository: slice-scheduler
+  pullPolicy: Always
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: "latest"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: "slice-scheduler-controller-manager"
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext:
+  runAsNonRoot: true
+
+securityContext:
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - "ALL"
+  runAsNonRoot: true
+  runAsUser: 1000
+  seccompProfile:
+    type: "RuntimeDefault"
+
+resources:
+  limits:
+    # Recommend only setting cpu limit when running directly on control-plane nodes.
+    # cpu: 15
+    memory: 3Gi
+  requests:
+    # CPU bumped from 100m to 2 cores.
+    # The scheduler performs CPU-intensive topology matching and solver
+    # computations at scale (500+ partitions). 2 cores is the minimum
+    # for responsive scheduling at production scale.
+    # Requires node pool with at least e2-standard-4 (3.9 allocatable cores).
+    cpu: 2
+    memory: 1Gi
+
+nodeSelector:
+  cloud.google.com/gke-nodepool: default-pool
+
+tolerations: []
+
+affinity: {}
+
+# TPU accelerator type. Must be set by the user:
+# - "v6e" for Trillium
+# - "tpu7x" for Ironwood
+tpuType: ""
+
+debug:
+  enabled: false
+  level: 1
+
+metrics:
+  enabled: true
+  port: 8443
+  secure: true
+
+pdb:
+  enabled: true
+  minAvailable: 1
+
+enableNodeReadiness: false
+enableTaintFiltering: false
+# Whole integer seconds (not a Go duration string like "5m") that a bound slice
+# tolerates node.kubernetes.io/not-ready:NoExecute or node.kubernetes.io/unreachable:NoExecute
+# before eviction. 0 evicts immediately; negative values tolerate forever.
+defaultNotReadyTolerationSeconds: 300
+defaultUnreachableTolerationSeconds: 300
+enableTestingFilter: true
+
+podReconciler:
+  enabled: true
+  workers: 4
+  waitForSliceReady: true
+  # How long a slice's pods get to leave gracefully, from the first eviction,
+  # before the ones still on their nodes are force-deleted. "0s" never
+  # force-deletes.
+  drainTimeout: 5m
+
+reschedule:
+  healthyDelay: 1m
+  unhealthyDelay: 5s
+  # Timeout for healthy-partition backoff before forcing reschedule.
+  # Set to "0s" to disable backoff entirely.
+  timeout: "10m"
+
+# API Priority and Fairness (APF) configuration.
+# Routes scheduler API requests to the 'workload-high' PriorityLevelConfiguration
+# to avoid throttling during scheduling bursts.
+# Requires Kubernetes >= 1.29 (workload-high PLC is not available in earlier versions).
+# If the PLC does not exist, the FlowSchema is silently ignored and requests
+# fall back to default priority — no functional impact, only performance.
+apf:
+  enabled: true
+  matchingPrecedence: 8000

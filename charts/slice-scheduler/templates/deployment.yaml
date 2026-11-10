@@ -1,0 +1,128 @@
+{{/*
+Copyright 2026 Google LLC
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "slice-scheduler.fullname" . }}
+  labels:
+    {{- include "slice-scheduler.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      {{- include "slice-scheduler.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "slice-scheduler.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "slice-scheduler.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - "--leader-elect"
+            - "--tpu-type={{ .Values.tpuType }}"
+            {{- if .Values.metrics.enabled }}
+            - "--metrics-bind-address=:{{ .Values.metrics.port }}"
+            {{- if .Values.metrics.secure }}
+            - "--metrics-secure=true"
+            {{- end }}
+            {{- end }}
+            - "--zap-encoder=json"
+            {{- if .Values.debug.enabled }}
+            - "--zap-devel"
+            - "--zap-log-level={{ .Values.debug.level }}"
+            {{- end }}
+            - "--enable-node-readiness={{ .Values.enableNodeReadiness }}"
+            - "--enable-taint-filtering={{ .Values.enableTaintFiltering }}"
+            - "--default-not-ready-toleration-seconds={{ include "slice-scheduler.tolerationSeconds" (list "defaultNotReadyTolerationSeconds" .Values.defaultNotReadyTolerationSeconds) }}"
+            - "--default-unreachable-toleration-seconds={{ include "slice-scheduler.tolerationSeconds" (list "defaultUnreachableTolerationSeconds" .Values.defaultUnreachableTolerationSeconds) }}"
+            - "--enable-testing-filter={{ .Values.enableTestingFilter }}"
+            {{- if .Values.podReconciler.enabled }}
+            - "--enable-pod-reconciler=true"
+            - "--pod-reconciler-workers={{ .Values.podReconciler.workers }}"
+            - "--wait-for-slice-ready={{ .Values.podReconciler.waitForSliceReady }}"
+            - "--pod-drain-timeout={{ .Values.podReconciler.drainTimeout | default "5m" }}"
+            {{- end }}
+            {{- if .Values.reschedule }}
+            - "--reschedule-healthy-delay={{ .Values.reschedule.healthyDelay }}"
+            - "--reschedule-unhealthy-delay={{ .Values.reschedule.unhealthyDelay }}"
+            - "--reschedule-timeout={{ .Values.reschedule.timeout | default "10m" }}"
+            {{- end }}
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.metrics.port }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      terminationGracePeriodSeconds: 10
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      affinity:
+        {{- with .Values.affinity }}
+        {{- toYaml . | nindent 8 }}
+        {{- else }}
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    {{- include "slice-scheduler.selectorLabels" . | nindent 20 }}
+                topologyKey: kubernetes.io/hostname
+        {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -1,0 +1,24 @@
+# More info: https://docs.docker.com/engine/reference/builder/#dockerignore-file
+# Exclude build artifacts, VCS, editor cruft, test files, and everything
+# not needed to compile the manager binary. Anything not listed below is
+# included so Go can see cmd/ and internal/ source trees.
+.git
+.github
+.vscode
+.idea
+bin
+dist
+testbin
+config
+docs
+hack
+test
+**/*_test.go
+**/testdata/**
+Dockerfile
+.dockerignore
+.gitignore
+README.md
+LICENSE
+PROJECT
+Makefile

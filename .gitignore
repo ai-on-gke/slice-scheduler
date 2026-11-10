@@ -1,0 +1,34 @@
+# Binaries
+bin/
+
+# Dependencies
+vendor/
+
+# Others
+*.tar
+.idea/
+.vscode/
+*.out
+*.test
+dist/
+
+
+# Test artifacts
+cover.out
+*.kubeconfig
+
+# IDE / editor
+*.swp
+*.swo
+*~
+
+# OS binaries
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Go workspace
+go.work
+Dockerfile.cross
+docs/_worker_notes/
